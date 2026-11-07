@@ -1,8 +1,12 @@
+import os
 from huggingface_hub import HfApi, login
 
 # 1. Authenticate with your Hugging Face token
-# Replace this with your actual Write token from huggingface.co/settings/tokens
-hf_token = ""
+hf_token = os.getenv("HF_TOKEN")
+
+if not hf_token:
+    raise ValueError("HF_TOKEN environment variable is not set. Please set it before running the script.")
+
 login(token=hf_token)
 
 # 2. Define your repository details
@@ -26,7 +30,6 @@ print(f"Uploading the contents of {folder_to_upload} to Hugging Face...")
 print("This may take a few minutes for a 16GB folder...")
 
 # 3. Upload the entire folder
-# This function automatically handles large files and resumes interrupted uploads
 api.upload_folder(
     folder_path=folder_to_upload,
     repo_id=repo_id,
