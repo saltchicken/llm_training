@@ -1,6 +1,0 @@
-curl http://localhost:11434/api/generate -d '{
-  "model": "my-test-agent",
-  "prompt": "<|turn>user\nList the files in the current directory.<turn|>\n<|turn>model\n<|channel>thought\n<channel|><|think|>\nUser",
-  "raw": true,
-  "stream": false
-}'
