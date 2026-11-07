@@ -1,12 +1,13 @@
 import os
+from dotenv import load_dotenv
 from huggingface_hub import HfApi, login
 
 # 1. Authenticate with your Hugging Face token
-hf_token = os.getenv("HF_TOKEN")
+load_dotenv()
 
+hf_token = os.getenv("HF_TOKEN")
 if not hf_token:
     raise ValueError("HF_TOKEN environment variable is not set. Please set it before running the script.")
-
 login(token=hf_token)
 
 # 2. Define your repository details
