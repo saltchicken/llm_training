@@ -1,0 +1,1 @@
+--base_model unsloth/gemma-4-26B-A4B-it --chat_template gemma-4   

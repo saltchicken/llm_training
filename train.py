@@ -10,7 +10,7 @@ from datasets import load_dataset
 from trl import SFTTrainer, SFTConfig
 
 def main(args):
-    # Authenticate with Hugging Face early to fail fast if missing
+    # 1. Authenticate with Hugging Face early to fail fast if missing
     load_dotenv()
     hf_token = os.getenv("HF_TOKEN")
     if not hf_token:
@@ -29,10 +29,10 @@ def main(args):
     # 3. Attach the LoRA Adapters
     model = FastLanguageModel.get_peft_model(
         model,
-        r = 16,
+        r = args.lora_r,
         target_modules = ["q_proj", "k_proj", "v_proj", "o_proj",
                           "gate_proj", "up_proj", "down_proj",],
-        lora_alpha = 32,
+        lora_alpha = args.lora_alpha,
         lora_dropout = 0,
         bias = "none",
         use_gradient_checkpointing = "unsloth",
@@ -58,17 +58,17 @@ def main(args):
     # 5. Configure the Trainer
     trainer = SFTTrainer(
         model = model,
-        processing_class = tokenizer,  # <-- FIXED: Renamed from 'tokenizer' to 'processing_class'
+        processing_class = tokenizer,
         train_dataset = dataset,
         dataset_text_field = "text",
         max_seq_length = args.max_seq_length,
         dataset_num_proc = 2,
         args = SFTConfig(
-            per_device_train_batch_size = 2, 
+            per_device_train_batch_size = args.batch_size, 
             gradient_accumulation_steps = 4,
             warmup_steps = 2,
             num_train_epochs = args.epochs,
-            learning_rate = 5e-5,
+            learning_rate = args.learning_rate,
             fp16 = not torch.cuda.is_bf16_supported(),
             bf16 = torch.cuda.is_bf16_supported(),
             logging_steps = 1,
@@ -100,28 +100,39 @@ def main(args):
         exist_ok=True
     )
 
-    print(f"Uploading the contents of ./{args.output_dir} to Hugging Face...")
+    # Dynamically locate the correct folder containing the GGUF files
+    unsloth_gguf_folder = f"{args.output_dir}_gguf"
+    upload_target = unsloth_gguf_folder if os.path.exists(unsloth_gguf_folder) else args.output_dir
+
+    print(f"Uploading ONLY .gguf files from ./{upload_target} to Hugging Face...")
     api.upload_folder(
-        folder_path=args.output_dir,
+        folder_path=upload_target,
         repo_id=repo_id,
         repo_type="model",
+        allow_patterns="*.gguf"
     )
 
     print(f"\nSuccess! Your model is now securely stored at:")
     print(f"https://huggingface.co/{repo_id}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train and upload a GGUF model")
+    parser = argparse.ArgumentParser(description="Train and upload a generic GGUF model")
     
     # Model & Dataset arguments
-    parser.add_argument("--base_model", type=str, default="unsloth/gemma-4-26B-A4B-it", help="Base model to train")
-    parser.add_argument("--chat_template", type=str, default="gemma-4", help="Chat template to apply")
+    parser.add_argument("--base_model", type=str, required=True, help="Base model to train (e.g., unsloth/llama-3-8b-Instruct)")
+    parser.add_argument("--chat_template", type=str, required=True, help="Chat template to apply (e.g., llama-3)")
     parser.add_argument("--dataset", type=str, default="dataset.jsonl", help="Path to the training dataset")
     parser.add_argument("--max_seq_length", type=int, default=4096, help="Maximum sequence length")
-    parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs")
+    
+    # Training hyperparameter arguments
+    parser.add_argument("--epochs", type=int, default=4, help="Number of training epochs")
+    parser.add_argument("--batch_size", type=int, default=2, help="Per device train batch size")
+    parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
+    parser.add_argument("--lora_r", type=int, default=16, help="LoRA rank")
+    parser.add_argument("--lora_alpha", type=int, default=32, help="LoRA alpha")
     
     # Export arguments
-    parser.add_argument("--output_dir", type=str, default="gemma4_native_agent", help="Local folder to save GGUF files")
+    parser.add_argument("--output_dir", type=str, default="export_gguf", help="Local folder to save GGUF files")
     parser.add_argument("--quantization", type=str, default="q4_k_m", help="GGUF quantization method")
     
     # Hugging Face arguments
